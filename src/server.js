@@ -161,15 +161,23 @@ async function findDepartures({ lat, lon, radius }) {
   // Use departures already returned by the initial radius query.
   // Keep only entries belonging to the nearest selected stop per category.
   const rawDepartures = initial.filter((item) => {
-    const place = item.place || {};
-    return selectedIds.has(place.stopId);
-  });
+  const place = item.place || {};
+  return selectedIds.has(place.stopId);
+});
 
-  const now = Date.now();
-  const normalized = rawDepartures
-    .map(normalizeDeparture)
-    .filter((item) => item.epochMs !== null && item.epochMs >= now - 60_000)
-    .sort((a, b) => a.epochMs - b.epochMs);
+const now = Date.now();
+
+const normalized = rawDepartures
+  .map(normalizeDeparture)
+  .filter((item) => item.epochMs !== null && item.epochMs >= now - 60_000)
+  .sort((a, b) => a.epochMs - b.epochMs);
+
+const debug = {
+  apiEntries: initial.length,
+  selectedStopEntries: rawDepartures.length,
+  futureEntries: normalized.length,
+};
+
 
   const seen = new Set();
   const departures = [];
@@ -185,6 +193,7 @@ async function findDepartures({ lat, lon, radius }) {
 
   return {
     query: { lat, lon, radius },
+    debug,
     stopsSelected: selected.map((stop) => ({
       category: stop.category,
       name: stop.stopName,
