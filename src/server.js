@@ -6,7 +6,7 @@ import path from "node:path";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const APP_NAME = "Transitous Departures";
-const APP_VERSION = "0.1.2";
+const APP_VERSION = "0.1.3";
 const CONTACT = process.env.CONTACT || "set-CONTACT-in-environment";
 const API_URL = "https://api.transitous.org/api/v6/stoptimes";
 
