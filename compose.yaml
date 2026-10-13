@@ -4,7 +4,7 @@ services:
     image: ghcr.io/tomgermany/transitous-departures:latest
     container_name: transitous-departures
     ports:
-      - "8080:8080"
+      - "8888:8080"
     environment:
       CONTACT: "https://github.com/tomgermany/transitous-departures"
     restart: unless-stopped
