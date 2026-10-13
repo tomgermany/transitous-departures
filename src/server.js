@@ -6,7 +6,7 @@ import path from "node:path";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 8080);
 const APP_NAME = "Transitous Departures";
-const APP_VERSION = "0.1.1";
+const APP_VERSION = "0.1.2";
 const CONTACT = process.env.CONTACT || "set-CONTACT-in-environment";
 const API_URL = "https://api.transitous.org/api/v6/stoptimes";
 
@@ -176,8 +176,13 @@ const debug = {
   apiEntries: initial.length,
   selectedStopEntries: rawDepartures.length,
   futureEntries: normalized.length,
+  sampleTimes: rawDepartures.slice(0, 6).map((item) => ({
+    stop: item.place?.name,
+    departure: item.departure,
+    scheduled: item.scheduled,
+    rawTime: getRawTime(item),
+  })),
 };
-
 
   const seen = new Set();
   const departures = [];
