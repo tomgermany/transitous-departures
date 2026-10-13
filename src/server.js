@@ -137,32 +137,33 @@ async function findDepartures({ lat, lon, radius }) {
     const place = item.place || {};
     const category = modeCategory(item.mode);
     if (!category || !place.stopId) continue;
+
     const stopLat = Number(place.lat);
     const stopLon = Number(place.lon);
     if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) continue;
+
     const distance = haversineMeters(lat, lon, stopLat, stopLon);
     const previous = nearestByCategory.get(category);
+
     if (!previous || distance < previous.distance) {
       nearestByCategory.set(category, {
-        category, stopId: place.stopId, stopName: place.name || "Unknown stop", distance,
+        category,
+        stopId: place.stopId,
+        stopName: place.name || "Unknown stop",
+        distance,
       });
     }
   }
 
   const selected = [...nearestByCategory.values()];
-  let rawDepartures;
-  if (selected.length) {
-    const resultSets = await Promise.all(selected.map(async (stop) => {
-      try {
-        return await transitousQuery({ lat, lon, radius, stopId: stop.stopId, n: 40 });
-      } catch {
-        return [];
-      }
-    }));
-    rawDepartures = resultSets.flat();
-  } else {
-    rawDepartures = initial;
-  }
+  const selectedIds = new Set(selected.map((stop) => stop.stopId));
+
+  // Use departures already returned by the initial radius query.
+  // Keep only entries belonging to the nearest selected stop per category.
+  const rawDepartures = initial.filter((item) => {
+    const place = item.place || {};
+    return selectedIds.has(place.stopId);
+  });
 
   const now = Date.now();
   const normalized = rawDepartures
@@ -172,9 +173,11 @@ async function findDepartures({ lat, lon, radius }) {
 
   const seen = new Set();
   const departures = [];
+
   for (const item of normalized) {
     const key = `${item.stopId}|${item.line}|${item.destination}|${item.epochMs}`;
     if (seen.has(key)) continue;
+
     seen.add(key);
     departures.push(item);
     if (departures.length === 5) break;
