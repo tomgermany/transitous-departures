@@ -20,7 +20,9 @@
     <label>Radius (m) <input name="radius" type="number" min="1" max="50000" required value="200"></label>
     <button type="submit">Find departures</button>
   </form>
-  <p id="message" role="status"></p><div id="stops" class="muted"></div>
+  <p id="message" role="status"></p>
+  <div id="stops" class="muted"></div>
+  <div id="debug" class="muted"></div>
   <table><thead><tr><th>Time</th><th>Stop</th><th>Mode</th><th>Line</th><th>Destination</th><th>Status</th><th>Platform</th></tr></thead><tbody id="results"></tbody></table>
   <p class="muted">Data and coverage depend on available feeds. <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous sources and attribution</a>.</p>
 <script>
