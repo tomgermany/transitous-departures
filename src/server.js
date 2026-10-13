@@ -176,6 +176,8 @@ const debug = {
   apiEntries: initial.length,
   selectedStopEntries: rawDepartures.length,
   futureEntries: normalized.length,
+  serverTimeUTC: new Date().toISOString(),
+  serverTimeLocal: new Date().toString(),
   sampleTimes: rawDepartures.slice(0, 6).map((item) => ({
     stop: item.place?.name,
     departure: item.departure,
@@ -183,7 +185,6 @@ const debug = {
     rawTime: getRawTime(item),
   })),
 };
-
   const seen = new Set();
   const departures = [];
 
