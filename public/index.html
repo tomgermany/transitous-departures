@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Transitous Departures</title>
+  <style>
+    body{font-family:system-ui,sans-serif;max-width:1000px;margin:2rem auto;padding:0 1rem;color:#222}
+    h1{margin-bottom:.25rem}form{display:flex;flex-wrap:wrap;gap:.75rem;align-items:end;margin:1.5rem 0}
+    label{display:grid;gap:.25rem;font-size:.9rem}input{padding:.5rem;width:8rem}button{padding:.55rem .9rem;cursor:pointer}
+    table{width:100%;border-collapse:collapse;margin-top:1rem}th,td{text-align:left;padding:.55rem;border-bottom:1px solid #ddd}th{background:#f4f4f4}
+    .muted{color:#666;font-size:.9rem}@media(max-width:650px){table{font-size:.82rem}th,td{padding:.35rem}}
+  </style>
+</head>
+<body>
+  <h1>Next departures</h1>
+  <p class="muted">Powered by Transitous. Enter coordinates and a search radius.</p>
+  <form id="search">
+    <label>Latitude <input name="lat" type="number" step="any" required value="49.411223"></label>
+    <label>Longitude <input name="lon" type="number" step="any" required value="8.711499"></label>
+    <label>Radius (m) <input name="radius" type="number" min="1" max="50000" required value="200"></label>
+    <button type="submit">Find departures</button>
+  </form>
+  <p id="message" role="status"></p><div id="stops" class="muted"></div>
+  <table><thead><tr><th>Time</th><th>Stop</th><th>Mode</th><th>Line</th><th>Destination</th><th>Status</th><th>Platform</th></tr></thead><tbody id="results"></tbody></table>
+  <p class="muted">Data and coverage depend on available feeds. <a href="https://transitous.org/sources/" target="_blank" rel="noreferrer">Transitous sources and attribution</a>.</p>
+<script>
+const form=document.querySelector('#search'),message=document.querySelector('#message'),results=document.querySelector('#results'),stops=document.querySelector('#stops');
+function cell(value){const td=document.createElement('td');td.textContent=value??'';return td;}
+form.addEventListener('submit',async event=>{event.preventDefault();message.textContent='Loading departures…';results.replaceChildren();stops.textContent='';const data=new FormData(form);const params=new URLSearchParams({lat:data.get('lat'),lon:data.get('lon'),radius:data.get('radius')});try{const response=await fetch(`/api/departures?${params}`);const payload=await response.json();if(!response.ok)throw new Error(payload.error||`HTTP ${response.status}`);stops.textContent='Selected stops: '+(payload.stopsSelected.map(s=>`${s.name} (${s.category}, ${s.distanceMeters} m)`).join('; ')||'none');for(const item of payload.departures){const tr=document.createElement('tr');tr.append(cell(item.time??(item.epochMs?new Date(item.epochMs).toISOString():'')),cell(item.stopName),cell(item.displayedMode),cell(item.line),cell(item.destination),cell(item.status),cell(item.platform));results.append(tr);}message.textContent=payload.departures.length?`Showing ${payload.departures.length} upcoming departures.`:'No upcoming departures found for the selected stops.';}catch(error){message.textContent=`Error: ${error.message}`;}});
+form.requestSubmit();
+</script>
+</body></html>
