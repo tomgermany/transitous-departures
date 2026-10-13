@@ -95,12 +95,18 @@ function normalizeDeparture(item) {
 
 async function transitousQuery({ lat, lon, radius, stopId, n = 100 }) {
   const params = new URLSearchParams({
-    center: `${lat},${lon}`,
-    radius: String(radius),
     n: String(n),
     language: "en",
   });
-  if (stopId) params.set("stopId", stopId);
+
+  if (stopId) {
+    // Bei einer gezielten Haltestellenabfrage nur die Stop-ID senden.
+    params.set("stopId", stopId);
+  } else {
+    // Bei der Suche im Umkreis Koordinaten und Radius senden.
+    params.set("center", `${lat},${lon}`);
+    params.set("radius", String(radius));
+  }
 
   const response = await fetch(`${API_URL}?${params}`, {
     headers: {
@@ -109,9 +115,17 @@ async function transitousQuery({ lat, lon, radius, stopId, n = 100 }) {
     },
     signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) throw new Error(`Transitous API returned HTTP ${response.status}`);
+
+  if (!response.ok) {
+    throw new Error(`Transitous API returned HTTP ${response.status}`);
+  }
+
   const data = await response.json();
-  if (!Array.isArray(data.stopTimes)) throw new Error("Transitous response did not contain a stopTimes array");
+
+  if (!Array.isArray(data.stopTimes)) {
+    throw new Error("Transitous response did not contain a stopTimes array");
+  }
+
   return data.stopTimes;
 }
 
