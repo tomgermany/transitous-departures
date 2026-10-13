@@ -130,7 +130,7 @@ async function transitousQuery({ lat, lon, radius, stopId, n = 100 }) {
 }
 
 
-async function findDepartures({ lat, lon, radius }) {
+async function findDepartures({ lat, lon, radius, count = 5 }) {
   // 1. Umkreissuche: nächstgelegene Haltestelle je Kategorie finden.
   const initial = await transitousQuery({
     lat,
@@ -218,9 +218,9 @@ async function findDepartures({ lat, lon, radius }) {
     })),
   };
 
-  // 4. Doppelte Abfahrten entfernen und die nächsten fünf auswählen.
+    // 4. Doppelte Abfahrten entfernen.
   const seen = new Set();
-  const departures = [];
+  const uniqueDepartures = [];
 
   for (const item of normalized) {
     const key = `${item.stopId}|${item.line}|${item.destination}|${item.epochMs}`;
@@ -228,13 +228,44 @@ async function findDepartures({ lat, lon, radius }) {
     if (seen.has(key)) continue;
 
     seen.add(key);
-    departures.push(item);
-
-    if (departures.length === 5) break;
+    uniqueDepartures.push({ ...item, _dedupKey: key });
   }
 
+  // 5. Zuerst die jeweils nächste Abfahrt jeder ausgewählten
+  // Haltestelle berücksichtigen.
+  const selectedStopIds = [...new Set(selected.map((stop) => stop.stopId))];
+  const departures = [];
+  const chosenKeys = new Set();
+
+  for (const stopId of selectedStopIds) {
+    const nextDeparture = uniqueDepartures.find(
+      (item) => item.stopId === stopId
+    );
+
+    if (nextDeparture) {
+      departures.push(nextDeparture);
+      chosenKeys.add(nextDeparture._dedupKey);
+    }
+  }
+
+  // 6. Verbleibende Plätze mit den zeitlich nächsten Abfahrten füllen.
+  for (const item of uniqueDepartures) {
+    if (departures.length >= count) break;
+    if (chosenKeys.has(item._dedupKey)) continue;
+
+    departures.push(item);
+    chosenKeys.add(item._dedupKey);
+  }
+
+  // 7. Auch die zuerst reservierten Haltestellen-Abfahrten
+  // chronologisch einsortieren.
+  departures.sort((a, b) => a.epochMs - b.epochMs);
+
+  // Interne Hilfsfelder vor der Ausgabe entfernen.
+  const finalDepartures = departures.map(({ _dedupKey, ...item }) => item);
+
   return {
-    query: { lat, lon, radius },
+    query: { lat, lon, radius, count },
     debug,
     stopsSelected: selected.map((stop) => ({
       category: stop.category,
@@ -242,7 +273,7 @@ async function findDepartures({ lat, lon, radius }) {
       stopId: stop.stopId,
       distanceMeters: Math.round(stop.distance),
     })),
-    departures,
+    departures: finalDepartures,
     attribution:
       "Transit data provided by Transitous. See https://transitous.org/sources/",
   };
@@ -256,11 +287,20 @@ const server = http.createServer(async (req, res) => {
     const lat = Number(url.searchParams.get("lat"));
     const lon = Number(url.searchParams.get("lon"));
     const radius = Number(url.searchParams.get("radius") || 500);
+    const requestedCount = Number(url.searchParams.get("count") ?? 5);
+    const count =
+        Number.isInteger(requestedCount) && requestedCount >= 5 && requestedCount <= 10
+    ? requestedCount
+    : 5;
     if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180 || !Number.isFinite(radius) || radius < 1 || radius > 50000) {
       return sendJson(res, 400, { error: "Provide valid lat, lon and radius query parameters (radius 1–50000 m)." });
     }
     try {
-      return sendJson(res, 200, await findDepartures({ lat, lon, radius }));
+     return sendJson(
+            res,
+            200,
+            await findDepartures({ lat, lon, radius, count })
+    );
     } catch (error) {
       return sendJson(res, 502, { error: error.message || "Transitous request failed" });
     }
