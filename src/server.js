@@ -129,18 +129,30 @@ async function transitousQuery({ lat, lon, radius, stopId, n = 100 }) {
   return data.stopTimes;
 }
 
+
 async function findDepartures({ lat, lon, radius }) {
-  const initial = await transitousQuery({ lat, lon, radius, n: 100 });
+  // 1. Umkreissuche: nächstgelegene Haltestelle je Kategorie finden.
+  const initial = await transitousQuery({
+    lat,
+    lon,
+    radius,
+    n: 100,
+  });
+
   const nearestByCategory = new Map();
 
   for (const item of initial) {
     const place = item.place || {};
     const category = modeCategory(item.mode);
+
     if (!category || !place.stopId) continue;
 
     const stopLat = Number(place.lat);
     const stopLon = Number(place.lon);
-    if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) continue;
+
+    if (!Number.isFinite(stopLat) || !Number.isFinite(stopLon)) {
+      continue;
+    }
 
     const distance = haversineMeters(lat, lon, stopLat, stopLon);
     const previous = nearestByCategory.get(category);
@@ -156,44 +168,68 @@ async function findDepartures({ lat, lon, radius }) {
   }
 
   const selected = [...nearestByCategory.values()];
-  const selectedIds = new Set(selected.map((stop) => stop.stopId));
 
-  // Use departures already returned by the initial radius query.
-  // Keep only entries belonging to the nearest selected stop per category.
-  const rawDepartures = initial.filter((item) => {
-  const place = item.place || {};
-  return selectedIds.has(place.stopId);
-});
+  // 2. Jede ausgewählte Haltestelle direkt über ihre Stop-ID abfragen.
+  // Doppelte Stop-IDs nur einmal abfragen.
+  const uniqueStops = [
+    ...new Map(selected.map((stop) => [stop.stopId, stop])).values(),
+  ];
 
-const now = Date.now();
+  const results = await Promise.all(
+    uniqueStops.map((stop) =>
+      transitousQuery({
+        lat,
+        lon,
+        radius,
+        stopId: stop.stopId,
+        n: 100,
+      })
+    )
+  );
 
-const normalized = rawDepartures
-  .map(normalizeDeparture)
-  .filter((item) => item.epochMs !== null && item.epochMs >= now - 60_000)
-  .sort((a, b) => a.epochMs - b.epochMs);
+  const rawDepartures = results.flat();
 
-const debug = {
-  apiEntries: initial.length,
-  selectedStopEntries: rawDepartures.length,
-  futureEntries: normalized.length,
-  serverTimeUTC: new Date().toISOString(),
-  serverTimeLocal: new Date().toString(),
-  sampleTimes: rawDepartures.slice(0, 6).map((item) => ({
-    stop: item.place?.name,
-    departure: item.departure,
-    scheduled: item.scheduled,
-    rawTime: getRawTime(item),
-  })),
-};
+  // 3. Abfahrten normalisieren, vergangene Einträge herausfiltern
+  // und nach Abfahrtszeit sortieren.
+  const now = Date.now();
+
+  const normalized = rawDepartures
+    .map(normalizeDeparture)
+    .filter(
+      (item) =>
+        item.epochMs !== null &&
+        item.epochMs >= now - 60_000
+    )
+    .sort((a, b) => a.epochMs - b.epochMs);
+
+  // Debug-Daten für den Vergleich mit den API-Antworten.
+  const debug = {
+    apiEntries: initial.length,
+    selectedStopEntries: rawDepartures.length,
+    futureEntries: normalized.length,
+    serverTimeUTC: new Date().toISOString(),
+    serverTimeLocal: new Date().toString(),
+    sampleTimes: rawDepartures.slice(0, 6).map((item) => ({
+      stop: item.place?.name,
+      stopId: item.place?.stopId,
+      departure: item.departure,
+      scheduled: item.scheduled,
+      rawTime: getRawTime(item),
+    })),
+  };
+
+  // 4. Doppelte Abfahrten entfernen und die nächsten fünf auswählen.
   const seen = new Set();
   const departures = [];
 
   for (const item of normalized) {
     const key = `${item.stopId}|${item.line}|${item.destination}|${item.epochMs}`;
+
     if (seen.has(key)) continue;
 
     seen.add(key);
     departures.push(item);
+
     if (departures.length === 5) break;
   }
 
@@ -207,7 +243,8 @@ const debug = {
       distanceMeters: Math.round(stop.distance),
     })),
     departures,
-    attribution: "Transit data provided by Transitous. See https://transitous.org/sources/",
+    attribution:
+      "Transit data provided by Transitous. See https://transitous.org/sources/",
   };
 }
 
