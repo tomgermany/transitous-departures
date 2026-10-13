@@ -1,4 +1,3 @@
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -27,6 +26,7 @@
     <label>Latitude <input name="lat" type="number" step="any" required value="49.411223"></label>
     <label>Longitude <input name="lon" type="number" step="any" required value="8.711499"></label>
     <label>Radius (m) <input name="radius" type="number" min="1" max="50000" required value="200"></label>
+    <label>Departures (5–10) <input name="count" type="number" min="5" max="10" step="1" required value="5"></label>
     <button type="submit">Find departures</button>
   </form>
 
@@ -56,6 +56,21 @@ function cell(value) {
   return td;
 }
 
+// Read optional initial values from the page URL.
+const pageParams = new URLSearchParams(window.location.search);
+
+for (const name of ['lat', 'lon', 'radius']) {
+  const value = pageParams.get(name);
+  if (value !== null && value.trim() !== '') {
+    form.elements[name].value = value;
+  }
+}
+
+const initialCount = Number(pageParams.get('count'));
+if (Number.isInteger(initialCount) && initialCount >= 5 && initialCount <= 10) {
+  form.elements.count.value = String(initialCount);
+}
+
 form.addEventListener('submit', async event => {
   event.preventDefault();
   message.textContent = 'Loading departures…';
@@ -64,11 +79,27 @@ form.addEventListener('submit', async event => {
   debug.textContent = '';
 
   const data = new FormData(form);
+  const requestedCount = Number(data.get('count'));
+  const count = Number.isInteger(requestedCount) &&
+    requestedCount >= 5 && requestedCount <= 10
+      ? requestedCount
+      : 5;
+
+  form.elements.count.value = String(count);
+
   const params = new URLSearchParams({
     lat: data.get('lat'),
     lon: data.get('lon'),
-    radius: data.get('radius')
+    radius: data.get('radius'),
+    count: String(count)
   });
+
+  // Keep the current settings in the browser address bar for easy testing.
+  const pageUrl = new URL(window.location.href);
+  for (const [key, value] of params) {
+    pageUrl.searchParams.set(key, value);
+  }
+  window.history.replaceState({}, '', pageUrl);
 
   try {
     const response = await fetch(`/api/departures?${params}`);
@@ -97,7 +128,7 @@ form.addEventListener('submit', async event => {
     }
 
     message.textContent = payload.departures.length
-      ? `Showing ${payload.departures.length} upcoming departures.`
+      ? `Showing ${payload.departures.length} upcoming departures (requested: ${count}).`
       : 'No upcoming departures found for the selected stops.';
   } catch (error) {
     message.textContent = `Error: ${error.message}`;
@@ -108,3 +139,4 @@ form.requestSubmit();
 </script>
 </body>
 </html>
+```
