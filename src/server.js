@@ -235,4 +235,11 @@ const server = http.createServer(async (req, res) => {
   return sendJson(res, 404, { error: "Not found" });
 });
 
-server.listen(PORT, "0.0.0.0", () => console.log(`${APP_NAME} ${APP_VERSION} listening on port ${PORT}`));
+server.listen(PORT, "0.0.0.0", () => {
+  console.log("==================================");
+  console.log(`${APP_NAME}`);
+  console.log(`Version: ${APP_VERSION}`);
+  console.log(`Port: ${PORT}`);
+  console.log(`Started: ${new Date().toISOString()}`);
+  console.log("==================================");
+});
